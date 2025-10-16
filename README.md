@@ -79,4 +79,6 @@ Verás los formularios para ingresar hechos y generar dictamen.
 ## 📚 Créditos
 Desarrollado por un experto en LegalTech.  
 Licencia MIT.
+streamlit==1.38.0
+pyyaml==6.0.2
 
