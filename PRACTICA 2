@@ -1,0 +1,534 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyPdXXdCyOXCSG1La8Tz4CpQ",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/laladro-maker/lab/blob/main/PRACTICA%202\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "dP_k_OcXWrNt"
+      },
+      "outputs": [],
+      "source": [
+        "import hashlib, datetime, json, os\n",
+        "os.makedirs(\"data/legal_registry\", exist_ok=True)\n",
+        "\n",
+        "def registrar_evento(tipo, descripcion, autor=\"Sistema\"):\n",
+        "    \"\"\"\n",
+        "    Registra un evento con fecha, tipo, descripción y autor\n",
+        "    en un archivo de log JSON Lines.\n",
+        "    \"\"\"\n",
+        "    evento = {\n",
+        "        \"fecha_utc\": datetime.datetime.utcnow().isoformat(),\n",
+        "        \"tipo\": tipo,\n",
+        "        \"descripcion\": descripcion,\n",
+        "        \"autor\": autor,\n",
+        "    }\n",
+        "    try:\n",
+        "        with open(\"data/legal_registry/event_log.jsonl\", \"a\") as f:\n",
+        "            f.write(json.dumps(evento) + \"\\n\")\n",
+        "    except Exception as e:\n",
+        "        print(f\"Error al registrar evento: {e}\")\n",
+        "\n",
+        "def calcular_hash_documento(documento):\n",
+        "    \"\"\"\n",
+        "    Calcula un hash SHA-256 de un diccionario (documento).\n",
+        "    Es crucial usar sort_keys=True para que el hash sea consistente.\n",
+        "    \"\"\"\n",
+        "    doc_string = json.dumps(documento, sort_keys=True).encode('utf-8')\n",
+        "    return hashlib.sha256(doc_string).hexdigest()\n",
+        "\n",
+        "def generar_acta(path=\"data/legal_registry/event_log.jsonl\"):\n",
+        "    \"\"\"\n",
+        "    Calcula el hash de un archivo de log y guarda el resultado\n",
+        "    como un acta legal inmutable.\n",
+        "    \"\"\"\n",
+        "    try:\n",
+        "        # Abrir en modo binario ('rb') es crucial para un hash correcto\n",
+        "        with open(path, \"rb\") as f:\n",
+        "            contenido = f.read()\n",
+        "\n",
+        "        # 1. Calcular el hash del contenido\n",
+        "        hash_result = hashlib.sha256(contenido).hexdigest()\n",
+        "\n",
+        "        # 2. Crear el diccionario del acta\n",
+        "        acta = {\n",
+        "            \"descripcion\": \"Acta de Cierre y Sellado de Log de Eventos\",\n",
+        "            \"archivo_origen\": path,\n",
+        "            \"fecha_sellado_utc\": datetime.datetime.utcnow().isoformat(),\n",
+        "            \"hash_sha256\": hash_result\n",
+        "        }\n",
+        "\n",
+        "        # 3. Guardar el acta como un nuevo archivo JSON\n",
+        "        ruta_acta = \"data/legal_registry/acta_legal.json\"\n",
+        "        with open(ruta_acta, \"w\") as f:\n",
+        "            json.dump(acta, f, indent=2, ensure_ascii=False)\n",
+        "\n",
+        "        print(f\"Acta legal generada con éxito en: {ruta_acta}\")\n",
+        "        print(f\"Hash del log (Sello): {hash_result}\")\n",
+        "        return ruta_acta\n",
+        "\n",
+        "    except FileNotFoundError:\n",
+        "        print(f\"Error: No se pudo encontrar el archivo de log en {path}\")\n",
+        "        return None\n",
+        "    except Exception as e:\n",
+        "        print(f\"Ocurrió un error: {e}\")\n",
+        "        return None\n",
+        "\n",
+        "def verificar_integridad(ruta_acta=\"data/legal_registry/acta_legal.json\", ruta_log=\"data/legal_registry/event_log.jsonl\"):\n",
+        "    \"\"\"\n",
+        "    Verifica la integridad del archivo de log comparando su hash actual\n",
+        "    con el hash almacenado en el acta legal.\n",
+        "    \"\"\"\n",
+        "    try:\n",
+        "        # 1. Leer el hash almacenado en el acta\n",
+        "        with open(ruta_acta, \"r\") as f:\n",
+        "            acta = json.load(f)\n",
+        "        hash_almacenado = acta.get(\"hash_sha256\")\n",
+        "\n",
+        "        if not hash_almacenado:\n",
+        "            print(f\"Error: No se encontró 'hash_sha256' en {ruta_acta}\")\n",
+        "            return False\n",
+        "\n",
+        "        # 2. Leer el contenido del log y recalcular su hash\n",
+        "        with open(ruta_log, \"rb\") as f:\n",
+        "            contenido_log = f.read()\n",
+        "\n",
+        "        hash_recalculado = hashlib.sha256(contenido_log).hexdigest()\n",
+        "\n",
+        "        # 3. Comparar los hashes\n",
+        "        print(f\"Hash Almacenado (Acta): {hash_almacenado}\")\n",
+        "        print(f\"Hash Recalculado (Log): {hash_recalculado}\")\n",
+        "\n",
+        "        if hash_almacenado == hash_recalculado:\n",
+        "            print(\"\\n✅ INTEGRIDAD VERIFICADA: El log no ha sido alterado.\")\n",
+        "            return True\n",
+        "        else:\n",
+        "            print(\"\\n❌ ¡ALERTA! El log ha sido ALTERADO.\")\n",
+        "            return False\n",
+        "\n",
+        "    except FileNotFoundError:\n",
+        "        print(f\"Error: No se encontró el acta ({ruta_acta}) o el log ({ruta_log}).\")\n",
+        "        return False\n",
+        "    except Exception as e:\n",
+        "        print(f\"Ocurrió un error durante la verificación: {e}\")\n",
+        "        return False\n",
+        "\n",
+        "def generar_firma_educativa(autor, ruta_acta=\"data/legal_registry/acta_legal.json\"):\n",
+        "    \"\"\"\n",
+        "    Simula una firma digital combinando el hash del acta\n",
+        "    con el nombre del autor y calculando un nuevo hash.\n",
+        "    \"\"\"\n",
+        "    try:\n",
+        "        # 1. Leer el hash del acta (el sello del documento)\n",
+        "        with open(ruta_acta, \"r\") as f:\n",
+        "            acta = json.load(f)\n",
+        "        hash_del_acta = acta.get(\"hash_sha256\")\n",
+        "\n",
+        "        if not hash_del_acta:\n",
+        "            print(f\"Error: No se encontró 'hash_sha256' en {ruta_acta}\")\n",
+        "            return None\n",
+        "\n",
+        "        # 2. Preparar los datos para la firma\n",
+        "        # En un sistema real, el autor usaría su clave privada.\n",
+        "        # Aquí, simulamos la vinculación combinando el hash + el nombre.\n",
+        "        datos_para_firmar = f\"{hash_del_acta}:{autor}\"\n",
+        "        print(f\"Datos combinados (Acta+Autor): {datos_para_firmar}\")\n",
+        "\n",
+        "        # 3. Calcular el hash de la combinación\n",
+        "        firma_hash = hashlib.sha256(datos_para_firmar.encode('utf-8')).hexdigest()\n",
+        "\n",
+        "        print(f\"\\n--- Firma Digital Educativa Generada ---\")\n",
+        "        print(f\"Autor (Firmante): {autor}\")\n",
+        "        print(f\"Hash del Acta (Sello): {hash_del_acta}\")\n",
+        "        print(f\"Firma (Hash combinado): {firma_hash}\")\n",
+        "\n",
+        "        # Guardamos la firma\n",
+        "        firma_data = {\n",
+        "            \"descripcion\": \"Simulación de Firma Digital sobre Acta Legal\",\n",
+        "            \"autor_firmante\": autor,\n",
+        "            \"hash_del_acta_firmada\": hash_del_acta,\n",
+        "            \"firma_simulada\": firma_hash,\n",
+        "            \"fecha_firma_utc\": datetime.datetime.utcnow().isoformat()\n",
+        "        }\n",
+        "\n",
+        "        ruta_firma = \"data/legal_registry/firma_acta.json\"\n",
+        "        with open(ruta_firma, \"w\") as f:\n",
+        "            json.dump(firma_data, f, indent=2, ensure_ascii=False) # Added 'f' here\n",
+        "\n",
+        "        print(f\"Firma guardada en: {ruta_firma}\")\n",
+        "        return firma_hash\n",
+        "\n",
+        "    except FileNotFoundError:\n",
+        "        print(f\"Error: No se encontró el acta en {ruta_acta}.\")\n",
+        "        return None\n",
+        "    except Exception as e:\n",
+        "        print(f\"Ocurrió un error al firmar: {e}\")\n",
+        "        return None\n",
+        "\n",
+        "def resumen_eventos(path=\"data/legal_registry/event_log.jsonl\"):\n",
+        "    \"\"\"\n",
+        "    Lee el archivo de log (JSON Lines) y genera un resumen\n",
+        "    de actividad, errores y el último autor.\n",
+        "    \"\"\"\n",
+        "    eventos = []\n",
+        "\n",
+        "    # --- 1. Leer el archivo de log ---\n",
+        "    try:\n",
+        "        with open(path, \"r\") as f:\n",
+        "            for line in f:\n",
+        "                try:\n",
+        "                    eventos.append(json.loads(line))\n",
+        "                except json.JSONDecodeError:\n",
+        "                    print(f\"Advertencia: Se omitió una línea mal formada en {path}\")\n",
+        "\n",
+        "    except FileNotFoundError:\n",
+        "        print(f\"Error: No se encontró el archivo de log en {path}\")\n",
+        "        return\n",
+        "    except Exception as e:\n",
+        "        print(f\"Ocurrió un error al leer el archivo: {e}\")\n",
+        "        return\n",
+        "\n",
+        "    if not eventos:\n",
+        "        print(\"El archivo de log está vacío. No hay resumen que mostrar.\")\n",
+        "        return\n",
+        "\n",
+        "    # --- 2. Procesar los eventos ---\n",
+        "\n",
+        "    # Usamos el campo 'tipo' para un conteo preciso\n",
+        "    tipos = [e.get('tipo', 'INDEFINIDO').upper() for e in eventos]\n",
+        "\n",
+        "    num_errores = tipos.count('ERROR')\n",
+        "    num_alertas = tipos.count('ALERTA_SEGURIDAD')\n",
+        "    num_verificados = tipos.count('VERIFICACION')\n",
+        "\n",
+        "    # El último autor es el del último evento en la lista\n",
+        "    ultimo_autor = eventos[-1].get('autor', 'Desconocido')\n",
+        "\n",
+        "    # --- 3. Generar el Resumen en Texto ---\n",
+        "    print(\"--- Resumen de Trazabilidad del Log ---\")\n",
+        "    print(f\"Total de eventos registrados: {len(eventos)}\")\n",
+        "\n",
+        "    print(\"\\n[Actividad del Sistema]\")\n",
+        "    print(f\"· Verificaciones de integridad: {num_verificados}\")\n",
+        "\n",
+        "    print(\"\\n[Alertas y Errores]\")\n",
+        "    print(f\"· Errores operativos: {num_errores}\")\n",
+        "    print(f\"· Alertas de seguridad: {num_alertas}\")\n",
+        "    print(f\"  TOTAL DE INCIDENCIAS: {num_errores + num_alertas}\")\n",
+        "\n",
+        "    print(\"\\n[Auditoría]\")\n",
+        "    print(f\"· Última acción registrada por: {ultimo_autor}\")\n",
+        "    print(\"---------------------------------------\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 141
+        },
+        "id": "35597557",
+        "outputId": "334a1d41-06a4-4134-bbb4-199d41164b4f"
+      },
+      "source": [
+        "verificar_integridad()"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "name 'verificar_integridad' is not defined",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m/tmp/ipython-input-3712466108.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[0;32m----> 1\u001b[0;31m \u001b[0mverificar_integridad\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m: name 'verificar_integridad' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "91c79b26"
+      },
+      "source": [
+        "generar_firma_educativa(autor=\"User Name\")"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "965b76db",
+        "outputId": "4ad473b6-b6d1-4d58-8f28-b781301724e1"
+      },
+      "source": [
+        "generar_firma_educativa(autor=\"User Name\")"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Datos combinados (Acta+Autor): ac651a2d2f998ef23353f336c1edbea365544201dd494503bdea9e10215c4e6d:User Name\n",
+            "\n",
+            "--- Firma Digital Educativa Generada ---\n",
+            "Autor (Firmante): User Name\n",
+            "Hash del Acta (Sello): ac651a2d2f998ef23353f336c1edbea365544201dd494503bdea9e10215c4e6d\n",
+            "Firma (Hash combinado): 6d453d2c75a875e48bd4af3b633e1f729ee896b8f5f87599359364c127bac32c\n",
+            "Ocurrió un error al firmar: dump() missing 1 required positional argument: 'fp'\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/tmp/ipython-input-2343508257.py:140: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n",
+            "  \"fecha_firma_utc\": datetime.datetime.utcnow().isoformat()\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "ef924b20",
+        "outputId": "4ef070c5-0661-4303-a27b-c3572292165c"
+      },
+      "source": [
+        "verificar_integridad()"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Hash Almacenado (Acta): ac651a2d2f998ef23353f336c1edbea365544201dd494503bdea9e10215c4e6d\n",
+            "Hash Recalculado (Log): ac651a2d2f998ef23353f336c1edbea365544201dd494503bdea9e10215c4e6d\n",
+            "\n",
+            "✅ INTEGRIDAD VERIFICADA: El log no ha sido alterado.\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "True"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 7
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "8c139a3f",
+        "outputId": "c0c0c254-5a90-4042-c4c3-dea092e5970a"
+      },
+      "source": [
+        "registrar_evento(tipo=\"INICIO\", descripcion=\"Sistema de registro legal iniciado.\")\n",
+        "registrar_evento(tipo=\"CREACION\", descripcion=\"Documento Creado ID: DOC-001\")\n",
+        "registrar_evento(tipo=\"VERIFICACION\", descripcion=\"Documento DOC-001 verificado.\")"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/tmp/ipython-input-2343508257.py:10: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n",
+            "  \"fecha_utc\": datetime.datetime.utcnow().isoformat(),\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 125
+        },
+        "id": "69e9aa50",
+        "outputId": "d7872032-3609-4701-9040-de97df4f3a88"
+      },
+      "source": [
+        "generar_acta()"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Acta legal generada con éxito en: data/legal_registry/acta_legal.json\n",
+            "Hash del log (Sello): ac651a2d2f998ef23353f336c1edbea365544201dd494503bdea9e10215c4e6d\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/tmp/ipython-input-2343508257.py:46: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n",
+            "  \"fecha_sellado_utc\": datetime.datetime.utcnow().isoformat(),\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "'data/legal_registry/acta_legal.json'"
+            ],
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            }
+          },
+          "metadata": {},
+          "execution_count": 6
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "aa21b6f6",
+        "outputId": "132c430d-c875-437b-d61c-dccd5d0181c7"
+      },
+      "source": [
+        "verificar_integridad()"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Error: No se encontró el acta (data/legal_registry/acta_legal.json) o el log (data/legal_registry/event_log.jsonl).\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "False"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 4
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "blockchain-b9-responsabilidad/\n",
+        "├─ README.md\n",
+        "├─ LICENSE\n",
+        "├─ CODE_OF_CONDUCT.md\n",
+        "├─ CONTRIBUTING.md\n",
+        "├─ SECURITY.md\n",
+        "├─ .gitignore\n",
+        "├─ notebooks/\n",
+        "│  ├─ 01_introduccion_responsabilidad.ipynb\n",
+        "│  ├─ 02_eventos_y_actas.ipynb\n",
+        "│  ├─ 03_verificacion_hash.ipynb\n",
+        "│  ├─ 04_panel_resumen.ipynb\n",
+        "│  └─ 05_publicacion_github.ipynb\n",
+        "├─ src/\n",
+        "│  ├─ registry.py\n",
+        "│  ├─ legal_utils.py\n",
+        "│  └─ resumen.py\n",
+        "├─ data/\n",
+        "│  ├─ legal_registry/\n",
+        "│  │  ├─ eventos.json\n",
+        "│  │  └─ acta_legal.json\n",
+        "│  └─ ejemplos/\n",
+        "│     └─ contrato_ficticio.txt\n",
+        "├─ docs/\n",
+        "│  ├─ guia_estudiante.md\n",
+        "│  ├─ guia_docente.md\n",
+        "│  └─ rubrica_evaluacion.md\n",
+        "└─ .github/\n",
+        "   └─ ISSUE_TEMPLATE/\n",
+        "      ├─ bug_report.md\n",
+        "      └─ feature_request.md\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 106
+        },
+        "id": "2vwcQbsNYoOz",
+        "outputId": "d6b32b32-fd94-4102-e1bc-2d9614d11cfe"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "SyntaxError",
+          "evalue": "invalid character '├' (U+251C) (ipython-input-756734799.py, line 2)",
+          "traceback": [
+            "\u001b[0;36m  File \u001b[0;32m\"/tmp/ipython-input-756734799.py\"\u001b[0;36m, line \u001b[0;32m2\u001b[0m\n\u001b[0;31m    ├─ README.md\u001b[0m\n\u001b[0m    ^\u001b[0m\n\u001b[0;31mSyntaxError\u001b[0m\u001b[0;31m:\u001b[0m invalid character '├' (U+251C)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ddac0ff8"
+      },
+      "source": [
+        "import os\n",
+        "print(os.listdir(\"data/legal_registry\"))"
+      ],
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
